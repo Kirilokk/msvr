@@ -1,1 +1,3 @@
-# Methods of syntesis of virtual reality Course
+# MSVR PA#1
+
+![alt text](media/demo.gif "Demo")​
