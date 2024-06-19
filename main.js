@@ -17,6 +17,12 @@ let b =  3 * R1;                // Height of the surface
 let stepAlpha = 0.1;             // Step for alpha
 let stepBeta = 0.1;               // Step for beta
 
+let video;
+let reflectionTexture;
+let twoTriangles;
+let texture;
+
+
 // Degree to Radian
 function deg2rad(angle) {
     return angle * Math.PI / 180;
@@ -99,7 +105,7 @@ function Model(name) {
         gl.vertexAttribPointer(shProgram.iAttribTexCoord, 2, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribTexCoord);
         
-        gl.drawArrays(gl.LINES, 0, this.count);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.count);
     }
 }
 
@@ -192,7 +198,20 @@ function draw() {
 
     gl.uniform4fv(shProgram.iColor, [0, 1, 0, 1]);
 
-    let modelViewProjection = m4.multiply(projection, matAccum1 );
+    let modelViewProjection = m4.identity()
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
+    gl.bindTexture(gl.TEXTURE_2D, reflectionTexture);
+    gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        video
+    );
+    twoTriangles.Draw()
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    modelViewProjection = m4.multiply(projection, matAccum1);
 
     reflection.ApplyLeftFrustum()
     modelViewProjection = m4.multiply(reflection.mProjectionMatrix, m4.multiply(reflection.mModelViewMatrix, matAccum1));
@@ -200,7 +219,7 @@ function draw() {
     gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection);
 
     gl.colorMask(true, false, false, false);
-
+    gl.bindTexture(gl.TEXTURE_2D, texture);
     surface.Draw();
 
     gl.clear(gl.DEPTH_BUFFER_BIT);
@@ -285,8 +304,8 @@ function CreateSurfaceData()
 }
 
 function animating() {
-    window.requestAnimationFrame(animating)
-    draw()
+    draw();
+    window.requestAnimationFrame(animating);
 }
 
 
@@ -305,6 +324,14 @@ function initGL() {
 
     surface = new Model('Surface');
     surface.BufferData(...CreateSurfaceData());
+
+    twoTriangles = new Model('Two triangles');
+    twoTriangles.BufferData(
+        [-1, -1, 0, 1, 1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, -1, 1, 0],
+        [1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0]
+    )
+
+
     gl.enable(gl.DEPTH_TEST);
 }
 
@@ -331,12 +358,39 @@ function createProgram(gl, vShader, fShader) {
     return prog;
 }
 
+
+function readCamera() {
+    const video = document.createElement('video');
+    video.setAttribute('autoplay', true);
+    window.vid = video;
+    navigator.getUserMedia({ video: true, audio: false }, function (stream) {
+        video.srcObject = stream;
+        let track = stream.getTracks()[0];
+    }, function (e) {
+        console.error('Rejected!', e);
+    });
+    return video;
+}
+
+function CreateCameraTexture() {
+    const cameraTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, cameraTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return cameraTexture;
+}
+
 function init() {
 
     let canvas;
     try {
         canvas = document.getElementById("webglcanvas");
         gl = canvas.getContext("webgl");
+        video = readCamera();
+        reflectionTexture = CreateCameraTexture();
+
         if ( ! gl ) {
             throw "Browser does not support WebGL";
         }
@@ -356,8 +410,8 @@ function init() {
     }
 
     spaceball = new TrackballRotator(canvas, draw, 0);
-    
-    let texture = gl.createTexture();
+    texture = gl.createTexture();
+
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
