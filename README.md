@@ -1,3 +1,3 @@
-# MSVR PA#2
+# MSVR CGW
 
 ![alt text](media/demo.gif "Demo")​

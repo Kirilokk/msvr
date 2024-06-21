@@ -23,6 +23,9 @@ let twoTriangles;
 let texture;
 
 
+let sphere;
+let audio, audiosource, filterNow, biquadFilter , panner, context;
+
 // Degree to Radian
 function deg2rad(angle) {
     return angle * Math.PI / 180;
@@ -211,6 +214,18 @@ function draw() {
     );
     twoTriangles.Draw()
     gl.clear(gl.DEPTH_BUFFER_BIT);
+
+    const timeframe = 0.001 * Date.now();
+    if (panner) {
+        panner.setPosition(Math.cos(timeframe), Math.sin(timeframe)/2, 1);
+    }
+
+    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, m4.multiply(m4.identity(),
+        m4.multiply(m4.translation(Math.cos(timeframe), Math.sin(timeframe)/2, 1), m4.scaling(1, 1, 1))));
+
+    sphere.Draw();
+
+    gl.clear(gl.DEPTH_BUFFER_BIT);
     modelViewProjection = m4.multiply(projection, matAccum1);
 
     reflection.ApplyLeftFrustum()
@@ -231,6 +246,38 @@ function draw() {
     surface.Draw();
     gl.colorMask(true, true, true, true);
 }
+
+function CreateSphereSurface(r = 0.1) {
+    let vertexList = [];
+    let lon = -Math.PI;
+    let lat = -Math.PI * 0.5;
+    while (lon < Math.PI) {
+        while (lat < Math.PI * 0.5) {
+            let v1 = surfaceForSphere(r, lon, lat);
+            let v2 = surfaceForSphere(r, lon + 0.5, lat);
+            let v3 = surfaceForSphere(r, lon, lat + 0.5);
+            let v4 = surfaceForSphere(r, lon + 0.5, lat + 0.5);
+            vertexList.push(v1.x, v1.y, v1.z);
+            vertexList.push(v2.x, v2.y, v2.z);
+            vertexList.push(v3.x, v3.y, v3.z);
+            vertexList.push(v2.x, v2.y, v2.z);
+            vertexList.push(v4.x, v4.y, v4.z);
+            vertexList.push(v3.x, v3.y, v3.z);
+            lat += 0.5;
+        }
+        lat = -Math.PI * 0.5
+        lon += 0.5;
+    }
+    return vertexList;
+}
+
+function surfaceForSphere(r, u, v) {
+    let x = r * Math.sin(u) * Math.cos(v);
+    let y = r * Math.sin(u) * Math.sin(v);
+    let z = r * Math.cos(u);
+    return { x: x, y: y, z: z };
+}
+
 
 // Function to calculate X surface coordinate
 function getX (alpha, beta){
@@ -331,6 +378,8 @@ function initGL() {
         [1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0]
     )
 
+    sphere = new Model('Surface2');
+    sphere.BufferData(CreateSphereSurface(), new Array(CreateSphereSurface().length).fill(0));
 
     gl.enable(gl.DEPTH_TEST);
 }
@@ -416,7 +465,7 @@ function init() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     const textureImage = new Image();
-    textureImage.crossOrigin = 'anonymus';
+    textureImage.crossOrigin = 'anonymous';
     
     textureImage.src = "https://raw.githubusercontent.com/mdn/dom-examples/main/webgl-examples/tutorial/sample6/cubetexture.png";
     textureImage.onload = () => {
@@ -433,4 +482,46 @@ function init() {
     }
 
     animating();
+}
+
+function initAudio() {
+    filterNow = document.getElementById('filterState');
+    audio = document.getElementById('audioContext');
+
+    audio.addEventListener('play', () => {
+        if (!context) {
+            context = new (window.AudioContext || window.webkitAudioContext)();
+            audiosource = context.createMediaElementSource(audio);
+            biquadFilter = context.createBiquadFilter();
+            panner = context.createPanner();
+
+            audiosource.connect(panner);
+            panner.connect(biquadFilter);
+            
+            biquadFilter.connect(context.destination);
+
+            biquadFilter.type = 'highshelf';
+            biquadFilter.gain.value = 30;
+            biquadFilter.frequency.value = 100;
+
+            context.resume();
+        }
+    });
+
+    audio.addEventListener('pause', () => {
+        context.suspend();
+    });
+
+    filterNow.addEventListener('change', function () {
+        if (filterNow.checked) {
+            panner.disconnect();
+            panner.connect(biquadFilter);
+            biquadFilter.connect(context.destination);
+        } else {
+            panner.disconnect();
+            panner.connect(context.destination);
+        }
+    });
+
+    audio.play();
 }
