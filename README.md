@@ -1,3 +1,3 @@
-# MSVR CGW
+# CGW (Spatial audio)
 
-![alt text](media/demo.gif "Demo")​
+![alt text](media/Glasses.jpg "Demo")​

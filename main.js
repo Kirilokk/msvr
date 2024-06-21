@@ -501,7 +501,7 @@ function initAudio() {
             biquadFilter.connect(context.destination);
 
             biquadFilter.type = 'highshelf';
-            biquadFilter.gain.value = 30;
+            biquadFilter.gain.value = 10;
             biquadFilter.frequency.value = 100;
 
             context.resume();
